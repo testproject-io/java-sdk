@@ -38,6 +38,11 @@ public final class TestReport extends Report {
     private String message;
 
     /**
+     * Define type as Test for batch report support.
+     */
+    private final ReportItemType type = ReportItemType.Test;
+
+    /**
      * Initializes a new instance of a Test Report.
      *
      * @param name Test name.
@@ -121,4 +126,5 @@ public final class TestReport extends Report {
     public String toString() {
         return this.name;
     }
+
 }

@@ -49,6 +49,12 @@ public final class DriverCommandReport extends Report {
     private String screenshot;
 
     /**
+     * Define type as Command for batch report support.
+     */
+    private final ReportItemType type = ReportItemType.Command;
+
+
+    /**
      * Getter for {@link #screenshot} field.
      *
      * @return value of {@link #screenshot} field
@@ -125,4 +131,5 @@ public final class DriverCommandReport extends Report {
     public String toString() {
         return this.commandName;
     }
+
 }
