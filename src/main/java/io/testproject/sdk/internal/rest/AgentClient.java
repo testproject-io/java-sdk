@@ -1236,7 +1236,7 @@ public final class AgentClient implements Closeable {
     /**
      * Internal class used to store Agent API routes.
      */
-    private static class Routes {
+    static class Routes {
         /**
          * Agent "status" endpoint address.
          */
@@ -1261,6 +1261,11 @@ public final class AgentClient implements Closeable {
          * Test reporting endpoint address.
          */
         static final String REPORT_TEST = "/api/development/report/test";
+
+        /**
+         * Test reporting endpoint address.
+         */
+        static final String REPORT_BATCH = "/api/development/report/batch";
 
         /**
          * Action proxy execution endpoint address.
