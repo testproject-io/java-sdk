@@ -170,7 +170,7 @@ public final class AgentClient implements Closeable {
     /**
      * Reference to the reports queue instance.
      */
-    private ReportsQueueBase reportsQueue;
+    private ReportsQueue reportsQueue;
 
     /**
      * Class member to store Agent session details.
