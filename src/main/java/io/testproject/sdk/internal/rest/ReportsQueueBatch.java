@@ -33,7 +33,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
 import java.util.List;
 
-public class ReportsQueueBatch extends ReportsQueueBase {
+public class ReportsQueueBatch extends ReportsQueue {
     /**
      * Logger instance.
      */
