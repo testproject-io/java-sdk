@@ -19,6 +19,7 @@ package io.testproject.sdk.internal.rest;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import io.testproject.sdk.internal.exceptions.AgentConnectException;
 import io.testproject.sdk.internal.rest.messages.Report;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
@@ -48,12 +49,17 @@ public class ReportsQueue implements Runnable {
     /**
      * An instance of the Google JSON serializer to serialize and deserialize objects.
      */
-    private static final Gson GSON = new GsonBuilder().create();
+    protected static final Gson GSON = new GsonBuilder().create();
 
     /**
      * Progress report delay in seconds.
      */
     private static final int PROGRESS_REPORT_DELAY = 3;
+
+    /**
+     * In case of failure during report - attempt maximum 4 times.
+     */
+    protected static final int MAX_REPORT_FAILURE_ATTEMPTS = 4;
 
     /**
      * Queue to synchronize reports sent to Agent.
@@ -81,6 +87,11 @@ public class ReportsQueue implements Runnable {
     private Future<?> progressFuture;
 
     /**
+     *  In case of 4 failures to send reports to the agent.
+     */
+    private boolean brokenReports = false;
+
+    /**
      * Initializes a new instance of the class.
      *
      * @param httpClient HTTP client ot use for communicating with the Agent.
@@ -89,14 +100,6 @@ public class ReportsQueue implements Runnable {
     public ReportsQueue(final CloseableHttpClient httpClient, final String sessionId) {
         this.httpClient = httpClient;
         this.sessionId = sessionId;
-    }
-
-    /**
-     * Access method to get the Gson.
-     * @return Gson.
-     */
-    public static Gson getGSON() {
-        return GSON;
     }
 
     /**
@@ -122,7 +125,9 @@ public class ReportsQueue implements Runnable {
      * @param report  Report that this request contains.
      */
     void submit(final HttpEntityEnclosingRequestBase request, final Report report) {
-        this.queue.add(new QueueItem(request, report));
+        if (!this.brokenReports) {
+            this.queue.add(new QueueItem(request, report));
+        }
     }
 
     /**
@@ -130,9 +135,10 @@ public class ReportsQueue implements Runnable {
      * From version 3.1.0 -> send reports in batches.
      * For lower versions -> Send standalone report
      * @throws InterruptedException
+     * @throws AgentConnectException in case of 4 failures to send reports to the agent
      */
-    void handleReport() throws InterruptedException {
-        sendReport(getQueue().take());
+    void handleReport() throws InterruptedException, AgentConnectException {
+        sendReport(this.queue.take());
     }
 
     /**
@@ -147,6 +153,8 @@ public class ReportsQueue implements Runnable {
             } catch (InterruptedException e) {
                 LOG.error("Reports queue was interrupted");
                 break;
+            } catch (AgentConnectException e) {
+                this.brokenReports = true;
             }
         }
 
@@ -161,8 +169,9 @@ public class ReportsQueue implements Runnable {
      * Submits a report to the Agent via HTTP RESTFul API endpoint.
      *
      * @param item Item retrieved from the queue (report & HTTP request).
+     * @throws AgentConnectException in case of 4 failures to send reports to the agent
      */
-    void sendReport(final QueueItem item) {
+    void sendReport(final QueueItem item) throws AgentConnectException {
         if (item.getRequest() == null && item.getReport() == null) {
             if (this.running) {
                 // There nulls are not OK, something went wrong preparing the report/request.
@@ -173,24 +182,34 @@ public class ReportsQueue implements Runnable {
             return;
         }
 
+        int reportAttemptsCount = MAX_REPORT_FAILURE_ATTEMPTS;
         CloseableHttpResponse response = null;
-        try {
-            response = this.httpClient.execute(item.getRequest());
-        } catch (IOException e) {
-            LOG.error("Failed to submit report: [{}]", item.getReport(), e);
-            return;
-        } finally {
-            // Consume response to release the resources
-            if (response != null) {
-                EntityUtils.consumeQuietly(response.getEntity());
+        do {
+            try {
+                response = this.httpClient.execute(item.getRequest());
+            } catch (IOException e) {
+                LOG.error("Failed to submit report: [{}]", item.getReport(), e);
+                return;
+            } finally {
+                // Consume response to release the resources
+                if (response != null) {
+                    EntityUtils.consumeQuietly(response.getEntity());
+                }
             }
-        }
 
-        // Handle unsuccessful response
-        if (response != null && response.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
-            LOG.error("Agent responded with an unexpected status {} to report: [{}]",
-                    response.getStatusLine().getStatusCode(), item.getReport());
-        }
+            // Handle unsuccessful response
+            if (response != null && response.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK) {
+                LOG.error("Agent responded with an unexpected status {} to report: [{}]",
+                        response.getStatusLine().getStatusCode(), item.getReport());
+                reportAttemptsCount--;
+                if (reportAttemptsCount == 0) {
+                    LOG.error("Failed to send reports to the agent.");
+                    throw new AgentConnectException("Failed to send reports to the agent.");
+                }
+
+                LOG.error("Attempt to send report again to the Agent. {} more attempts are left.", reportAttemptsCount);
+            }
+        } while (response != null && response.getStatusLine().getStatusCode() != HttpURLConnection.HTTP_OK);
     }
 
 
