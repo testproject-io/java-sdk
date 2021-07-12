@@ -17,6 +17,9 @@
 
 package io.testproject.sdk.internal.rest.messages;
 
-public abstract class Report {
-
+public enum ReportItemType {
+    /**
+     * Those are the reports types which are supported to be sent at batches.
+     */
+    Command, Test, Step
 }

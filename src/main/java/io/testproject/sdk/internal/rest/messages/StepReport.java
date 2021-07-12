@@ -17,6 +17,7 @@
 
 package io.testproject.sdk.internal.rest.messages;
 
+
 import java.util.UUID;
 
 /**
@@ -48,6 +49,12 @@ public final class StepReport extends Report {
      * Flag to indicate pass/fail state.
      */
     private final boolean passed;
+
+    /**
+     * Define type as Step for batch report support.
+     */
+    private final ReportItemType type = ReportItemType.Step;
+
 
     /**
      * Getter for {@link #guid} field.
@@ -120,4 +127,5 @@ public final class StepReport extends Report {
     public String toString() {
         return this.description;
     }
+
 }

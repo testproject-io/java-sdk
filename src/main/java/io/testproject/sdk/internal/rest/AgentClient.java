@@ -211,6 +211,12 @@ public final class AgentClient implements Closeable {
     private SessionResponse agentResponse;
 
     /**
+     * Minimum Agent version that supports reporting at batches.
+     */
+    private static final String MIN_BATCH_REPORT_SUPPORTED_VERSION = "3.1.0";
+
+
+    /**
      * Creates a new instance of the class.
      * Initiates a development session with the Agent.
      *
@@ -290,7 +296,13 @@ public final class AgentClient implements Closeable {
 
         // Start reports queue
         if (!disableReports) {
-            this.reportsQueue = new ReportsQueue(this.httpClient, this.getSession().getSessionId());
+            if (new ComparableVersion(version).compareTo(
+                    new ComparableVersion(MIN_BATCH_REPORT_SUPPORTED_VERSION)) > 0) {
+                        this.reportsQueue = new ReportsQueueBatch(
+                                this.httpClient, this.getSession().getSessionId(), this.remoteAddress);
+            } else {
+                this.reportsQueue = new ReportsQueue(this.httpClient, this.getSession().getSessionId());
+            }
             this.reportsQueueFuture = reportsExecutorService.submit(this.reportsQueue);
         }
 
@@ -1236,7 +1248,7 @@ public final class AgentClient implements Closeable {
     /**
      * Internal class used to store Agent API routes.
      */
-    private static class Routes {
+    static class Routes {
         /**
          * Agent "status" endpoint address.
          */
@@ -1261,6 +1273,11 @@ public final class AgentClient implements Closeable {
          * Test reporting endpoint address.
          */
         static final String REPORT_TEST = "/api/development/report/test";
+
+        /**
+         * Batch reporting endpoint address.
+         */
+        static final String REPORT_BATCH = "/api/development/report/batch";
 
         /**
          * Action proxy execution endpoint address.
